@@ -432,15 +432,15 @@ const Dashboard = {
 const Clients = {
   title: "Klienci",
   actions() {
-    const wrap = el(`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <div class="search">${ICONS.search}<input type="text" placeholder="Szukaj klienta…" id="c-search"></div></div>`);
-    wrap.append(button(`${ICONS.plus}Dodaj klienta`, "primary", () => addClient()));
+    const wrap = el(`<div class="toolbar">
+      <div class="search">${ICONS.search}<input type="text" placeholder="Szukaj klienta…" id="c-search" aria-label="Szukaj klienta"></div></div>`);
+    wrap.append(button(`${ICONS.plus}<span>Dodaj klienta</span>`, "primary", () => addClient()));
     $("input", wrap).value = S.search;
     $("input", wrap).addEventListener("input", (e) => { S.search = e.target.value; S.status && this.update(S.status); });
     return wrap;
   },
   render(v) {
-    v.innerHTML = `<div class="card"><div class="card-b flush table-wrap"><table>
+    v.innerHTML = `<div class="card"><div class="card-b flush table-wrap"><table class="rtable">
       <thead><tr><th>Klient</th><th>Stan</th><th class="hide-sm">Połączony z</th><th class="right">Prędkość ↓ / ↑</th><th class="right hide-sm">Zużycie ↓ / ↑</th><th class="right hide-sm">Ostatnio</th><th></th></tr></thead>
       <tbody id="c-rows"></tbody></table></div></div>
       <p class="muted" style="font-size:12.5px;margin-top:12px">Kliknij klienta, żeby zobaczyć jego ruch, sesje i połączenia. „↓” to dane wysłane do klienta, „↑” to dane od klienta.</p>`;
@@ -457,14 +457,14 @@ const Clients = {
     }
     tbody.innerHTML = list.map((c) => `
       <tr class="click ${c.enabled ? "" : "off"}" data-id="${c.id}">
-        <td><div class="title">${esc(c.name)}${c.imported && !c.has_config ? ' <span class="badge" title="Dodany poza panelem">import</span>' : ""}</div>
+        <td class="c-name"><div class="title">${esc(c.name)}${c.imported && !c.has_config ? ' <span class="badge" title="Dodany poza panelem">import</span>' : ""}</div>
             <div class="subtitle"><span class="mono">${esc(c.address)}</span> · ${esc(c.mode_label)}${c.note ? ` · ${esc(c.note)}` : ""}</div></td>
-        <td>${statusBadge(c)}</td>
+        <td class="c-state">${statusBadge(c)}</td>
         <td class="hide-sm mono">${c.online ? esc(hostOf(c.endpoint)) : '<span class="faint">—</span>'}</td>
-        <td class="right num nowrap"><span class="down">${fmtRate(c.tx_rate)}</span><br><span class="up" style="font-size:12px">${fmtRate(c.rx_rate)}</span></td>
+        <td class="c-speed right num nowrap"><span class="down">↓ ${fmtRate(c.tx_rate)}</span><br><span class="up" style="font-size:12px">↑ ${fmtRate(c.rx_rate)}</span></td>
         <td class="right num nowrap hide-sm"><span>${fmtBytes(c.total_tx)}</span><br><span class="muted" style="font-size:12px">${fmtBytes(c.total_rx)}</span></td>
         <td class="right hide-sm muted nowrap">${c.online ? "teraz" : ago(c.latest_handshake)}</td>
-        <td><div class="actions">
+        <td class="c-actions"><div class="actions">
           <button class="btn icon ghost" data-act="qr" title="Kod QR i konfiguracja">${ICONS.qr}</button>
           <button class="btn icon ghost" data-act="edit" title="Edytuj">${ICONS.edit}</button>
           <button class="btn icon ghost" data-act="toggle" title="${c.enabled ? "Wyłącz" : "Włącz"}">${ICONS.power}</button>
@@ -495,7 +495,7 @@ function addClient() {
   const defMode = (S.settings && S.settings.default_mode) || "full";
   const form = el(`<form class="form">
     <label class="field">Nazwa<input type="text" name="name" maxlength="60" placeholder="np. Telefon Dawida" required></label>
-    <div class="field" style="display:grid;gap:6px;font-size:12.5px;color:var(--muted);font-weight:500">Co ma iść przez VPN
+    <div class="field"><span>Co ma iść przez VPN</span>
       <div class="radio-cards">
         <label><input type="radio" name="mode" value="full" ${defMode === "full" ? "checked" : ""}><b>Cały ruch przez dom</b><small>Internet wychodzi z Twojego domowego adresu</small></label>
         <label><input type="radio" name="mode" value="lan" ${defMode === "lan" ? "checked" : ""}><b>Tylko sieć domowa</b><small>Dostęp do urządzeń w domu, reszta bez VPN</small></label>
@@ -689,12 +689,12 @@ function connTable(items, showClient, meta) {
   if (meta && meta.error) return `<div class="notice warn" style="margin:12px 16px">${esc(meta.error)}</div>`;
   if (!items.length) return '<div class="empty"><b>Brak aktywnych połączeń</b>Gdy klient VPN otworzy stronę lub aplikację, połączenie pojawi się tutaj.</div>';
   const acct = meta && meta.accounting;
-  return `<table><thead><tr>${showClient ? "<th>Klient</th>" : ""}<th>Dokąd</th><th>Usługa</th><th class="hide-sm">Stan</th>${acct ? '<th class="right">↓ / ↑</th>' : ""}</tr></thead><tbody>${items.map((c) => `
-    <tr>${showClient ? `<td class="nowrap"><b>${esc(c.client)}</b></td>` : ""}
-      <td><div class="title" style="font-weight:500">${esc(c.host || c.dst)}${c.local ? ' <span class="badge">sieć domowa</span>' : ""}</div><div class="subtitle mono">${esc(c.dst)}:${c.dport}</div></td>
-      <td class="nowrap">${esc(c.service || c.proto.toUpperCase())} <span class="faint">${esc(c.proto)}</span></td>
+  return `<table class="ctable"><thead><tr>${showClient ? "<th>Klient</th>" : ""}<th>Dokąd</th><th class="hide-sm">Usługa</th><th class="hide-sm">Stan</th>${acct ? '<th class="right">↓ / ↑</th>' : ""}</tr></thead><tbody>${items.map((c) => `
+    <tr>${showClient ? `<td class="k-client nowrap"><b>${esc(c.client)}</b></td>` : ""}
+      <td class="k-dest"><div class="title" style="font-weight:500">${esc(c.host || c.dst)}${c.local ? ' <span class="badge">sieć domowa</span>' : ""}</div><div class="subtitle"><span class="mono">${esc(c.dst)}:${c.dport}</span><span class="show-sm"> · ${esc(c.service || c.proto.toUpperCase())}</span></div></td>
+      <td class="nowrap hide-sm">${esc(c.service || c.proto.toUpperCase())} <span class="faint">${esc(c.proto)}</span></td>
       <td class="hide-sm muted nowrap">${esc(c.state ? c.state.toLowerCase() : (c.flags || []).includes("ASSURED") ? "aktywne" : "nowe")}</td>
-      ${acct ? `<td class="right num nowrap"><span class="down">${fmtBytes(c.bytes_in)}</span> <span class="up" style="font-size:12px">${fmtBytes(c.bytes_out)}</span></td>` : ""}
+      ${acct ? `<td class="k-bytes right num nowrap"><span class="down">↓ ${fmtBytes(c.bytes_in)}</span><br><span class="up" style="font-size:12px">↑ ${fmtBytes(c.bytes_out)}</span></td>` : ""}
     </tr>`).join("")}</tbody></table>`;
 }
 
@@ -702,7 +702,7 @@ const Connections = {
   title: "Połączenia",
   filter: "",
   actions() {
-    const sel = el('<select style="width:auto;min-width:200px"><option value="">Wszyscy klienci</option></select>');
+    const sel = el('<select class="select-auto" aria-label="Filtr klienta"><option value="">Wszyscy klienci</option></select>');
     (S.status ? S.status.clients : []).forEach((c) => sel.append(new Option(c.name, c.id)));
     sel.value = this.filter;
     sel.addEventListener("change", () => { this.filter = sel.value; this.load(); });
@@ -739,12 +739,12 @@ const Connections = {
 /* ================================================================ widok: historia */
 function sessionTable(items, showClient) {
   if (!items.length) return '<div class="empty"><b>Brak sesji</b>Sesja pojawi się, gdy klient połączy się z VPN.</div>';
-  return `<table><thead><tr>${showClient ? "<th>Klient</th>" : ""}<th>Początek</th><th>Czas</th><th class="hide-sm">Skąd</th><th class="right">↓ / ↑</th></tr></thead><tbody>${items.map((s) => `
-    <tr>${showClient ? `<td class="nowrap"><b>${esc(s.name || "(usunięty)")}</b></td>` : ""}
-      <td class="nowrap">${fmtDateTime(s.started_at)}</td>
-      <td class="nowrap">${s.active ? `<span class="badge ok"><span class="dot ok"></span>trwa · ${fmtDur(now() - s.started_at)}</span>` : fmtDur((s.ended_at || s.last_seen) - s.started_at)}</td>
+  return `<table class="stable"><thead><tr>${showClient ? "<th>Klient</th>" : ""}<th>Początek</th><th>Czas</th><th class="hide-sm">Skąd</th><th class="right">↓ / ↑</th></tr></thead><tbody>${items.map((s) => `
+    <tr>${showClient ? `<td class="k-client nowrap"><b>${esc(s.name || "(usunięty)")}</b></td>` : ""}
+      <td class="k-start nowrap">${fmtDateTime(s.started_at)}</td>
+      <td class="k-dur nowrap">${s.active ? `<span class="badge ok"><span class="dot ok"></span>trwa · ${fmtDur(now() - s.started_at)}</span>` : fmtDur((s.ended_at || s.last_seen) - s.started_at)}</td>
       <td class="hide-sm mono">${esc(hostOf(s.endpoint) || "—")}</td>
-      <td class="right num nowrap"><span class="down">${fmtBytes(s.tx)}</span> <span class="up" style="font-size:12px">${fmtBytes(s.rx)}</span></td>
+      <td class="k-bytes right num nowrap"><span class="down">↓ ${fmtBytes(s.tx)}</span><br><span class="up" style="font-size:12px">↑ ${fmtBytes(s.rx)}</span></td>
     </tr>`).join("")}</tbody></table>`;
 }
 
@@ -824,7 +824,7 @@ const Settings = {
             </div>
             <label class="field">Domyślny tryb nowych klientów<select name="default_mode"><option value="full">Cały ruch przez dom</option><option value="lan">Tylko sieć domowa</option></select></label>
             <div class="notice">Zmiany dotyczą plików konfiguracyjnych klientów. Istniejące urządzenia muszą ponownie zeskanować kod QR, żeby je dostać.</div>
-            <div><button class="btn primary" type="submit">Zapisz ustawienia</button></div>
+            <div class="form-actions"><button class="btn primary" type="submit">Zapisz ustawienia</button></div>
           </form></div></div>
         <div style="display:grid;gap:16px;align-content:start">
           <div class="card"><div class="card-h"><h2>Serwer WireGuard</h2></div><div class="card-b"><dl class="facts">
@@ -845,7 +845,7 @@ const Settings = {
                 <label class="field">Nowe hasło<input type="password" name="new" autocomplete="new-password" minlength="8" required></label>
                 <label class="field">Powtórz<input type="password" name="repeat" autocomplete="new-password" minlength="8" required></label>
               </div>
-              <div><button class="btn" type="submit">Zmień hasło</button></div>
+              <div class="form-actions"><button class="btn" type="submit">Zmień hasło</button></div>
             </form></div></div>
           <div class="card"><div class="card-h"><h2>Panel</h2></div><div class="card-b"><dl class="facts">
             <dt>Wersja</dt><dd class="mono">${esc(i.version)}</dd>
@@ -919,6 +919,7 @@ async function loop() {
 }
 
 $("#menu-btn").addEventListener("click", () => $("#app").classList.toggle("nav-open"));
+$("#nav-backdrop").addEventListener("click", () => $("#app").classList.remove("nav-open"));
 $("#theme-btn").addEventListener("click", () => {
   const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", next);
