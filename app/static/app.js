@@ -419,7 +419,7 @@ const Dashboard = {
       <span class="n">${esc(i.name)}</span><span class="down num right">↓ ${fmtRate(i.rx_rate)}</span><span class="up num right">↑ ${fmtRate(i.tx_rate)}</span>`).join("");
     $("#d-facts").innerHTML = `
       <dt>Temperatura</dt><dd>${srv.temp != null ? `${String(srv.temp).replace(".", ",")} °C` : "—"}</dd>
-      <dt>Obciążenie</dt><dd class="num">${(srv.load || []).map((x) => x.toFixed(2)).join(" · ") || "—"}</dd>
+      <dt title="Średnia liczba zadań czekających na procesor (load average). Wartość równa liczbie rdzeni oznacza pełne obciążenie.">Obciążenie</dt><dd>${loadText(srv.load, srv.cores)}</dd>
       <dt>Działa od</dt><dd>${srv.uptime ? fmtDur(srv.uptime) : "—"}</dd>
       <dt>Procesor</dt><dd>${esc(srv.cpu_model || "—")} (${srv.cores || "?"} rdz.)</dd>
       <dt>System</dt><dd>${esc(srv.os || "—")}</dd>
@@ -427,6 +427,18 @@ const Dashboard = {
   },
   destroy() { this.chart && this.chart.destroy(); this.chart = null; },
 };
+
+/* load average (1, 5, 15 min) i jego udział w mocy wszystkich rdzeni */
+function loadText(load, cores) {
+  if (!load || !load.length) return "—";
+  const n = Math.max(1, cores || 1);
+  const pct = (x) => Math.round((x / n) * 100);
+  const vals = load.map((x) => x.toFixed(2).replace(".", ",")).join(" · ");
+  const p = pct(load[0]);
+  const cls = p > 100 ? "bad" : p > 75 ? "warn" : "";
+  return `<span class="num">${vals}</span>
+    <div class="fact-note"><span>średnia z 1 · 5 · 15 min</span> · <span class="${cls}">${p}% mocy CPU</span></div>`;
+}
 
 /* ================================================================ widok: klienci */
 const Clients = {
@@ -736,6 +748,207 @@ const Connections = {
   update() { if (!this.last || now() - this.last >= 4) this.load(); },
 };
 
+/* ================================================================ widok: sieć domowa */
+const DEV_ICONS = {
+  router: '<path d="M4 14h16v5H4z"/><path d="M8 14V9M16 14V9M7.5 16.5h.01M11 16.5h.01"/><path d="M5.5 6.5a9 9 0 0 1 13 0M8.5 9a5 5 0 0 1 7 0"/>',
+  server: '<rect x="4" y="3" width="16" height="7" rx="1.5"/><rect x="4" y="14" width="16" height="7" rx="1.5"/><path d="M8 6.5h.01M8 17.5h.01"/>',
+  computer: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M2 20h20"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
+  tablet: '<rect x="4.5" y="2.5" width="15" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  tv: '<rect x="2.5" y="4" width="19" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/>',
+  speaker: '<rect x="6" y="2.5" width="12" height="19" rx="2"/><circle cx="12" cy="14.5" r="3"/><path d="M12 6.5h.01"/>',
+  printer: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/>',
+  camera: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="m16 11 5-3v8l-5-3"/>',
+  iot: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
+  console: '<path d="M7 8h10a4 4 0 0 1 4 4v2a3 3 0 0 1-5.4 1.8L14.5 14h-5l-1.1 1.8A3 3 0 0 1 3 14v-2a4 4 0 0 1 4-4z"/><path d="M8 10.5v3M6.5 12h3M15.5 11h.01M17.5 13h.01"/>',
+  nas: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M8.5 7h7M8.5 11h7M15 17h.01"/>',
+  network: '<circle cx="12" cy="17" r="2"/><path d="M8 13a6 6 0 0 1 8 0M5 10a10 10 0 0 1 14 0"/>',
+  unknown: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/>',
+};
+const devIcon = (t) => `<span class="dev-ico t-${esc(t)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${DEV_ICONS[t] || DEV_ICONS.unknown}</svg></span>`;
+const devName = (d) => d.name || shortHost(d.mdns) || shortHost(d.hostname) || d.netbios || d.type_label;
+function shortHost(h) {
+  if (!h) return "";
+  return h.replace(/\.(local|home|lan|localdomain|box|router)$/i, "");
+}
+const ipKey = (ip) => ip.split(".").reduce((a, x) => a * 256 + Number(x), 0);
+
+const Lan = {
+  title: "Sieć domowa",
+  q: "",
+  only: "",
+  data: null,
+  actions() {
+    const wrap = el(`<div class="toolbar lan-tools">
+      <div class="search">${ICONS.search}<input type="text" placeholder="Szukaj: nazwa, IP, MAC…" aria-label="Szukaj urządzenia"></div>
+      <select class="select-auto" aria-label="Pokaż"><option value="">Wszystkie</option><option value="on">Tylko w sieci</option></select></div>`);
+    const inp = $("input", wrap), sel = $("select", wrap);
+    inp.value = this.q;
+    sel.value = this.only;
+    inp.addEventListener("input", () => { this.q = inp.value; this.draw(); });
+    sel.addEventListener("change", () => { this.only = sel.value; this.draw(); });
+    this.scanBtn = button(`${ICONS.search}<span>Skanuj</span>`, "primary", () => this.scan());
+    wrap.append(this.scanBtn);
+    return wrap;
+  },
+  render(v) {
+    v.innerHTML = `
+      <div class="notice warn" id="ln-err" style="margin-bottom:16px" hidden></div>
+      <div class="card"><div class="card-h"><h2>Urządzenia</h2><span class="badge ok" id="ln-on">0</span><span class="muted" id="ln-sub" style="font-size:12.5px"></span><div class="spacer"></div><span class="muted" id="ln-at" style="font-size:12px"></span></div>
+        <div class="card-b flush table-wrap"><table class="ltable"><thead><tr><th>Urządzenie</th><th>Adres IP</th><th class="hide-sm">Adres MAC</th><th class="hide-sm">Producent</th><th class="right">Ostatnio</th></tr></thead>
+        <tbody id="ln-rows"><tr><td colspan="5"><div class="empty">Wczytuję…</div></td></tr></tbody></table></div></div>
+      <p class="muted" style="font-size:12.5px;margin-top:12px">Panel co ${Math.round((this.data && this.data.interval || 180) / 60)} min sprawdza, kto odpowiada w sieci domowej. Typ urządzenia jest zgadywany z producenta karty sieciowej, nazwy w sieci i otwartych portów. Kliknij urządzenie, żeby nadać mu własną nazwę albo sprawdzić porty.</p>`;
+    $("#ln-rows").addEventListener("click", (e) => {
+      const tr = e.target.closest("tr[data-mac]");
+      if (tr) LanDetail.open(tr.dataset.mac);
+    });
+    this.load();
+  },
+  async load() {
+    const r = await api("/api/lan").catch(() => null);
+    if (!r || S.view !== "lan") return;
+    this.last = now();
+    this.data = r;
+    this.draw();
+  },
+  async scan() {
+    await withBusy(this.scanBtn, async () => {
+      this.scanBtn.classList.add("spin");
+      $("#ln-at") && ($("#ln-at").textContent = "skanuję sieć… (ok. 15 s)");
+      try {
+        const r = await api("/api/lan/scan", { method: "POST" });
+        this.data = r;
+        if (S.view === "lan") this.draw();
+        toast(`Skanowanie zakończone: ${r.devices.filter((d) => d.online).length} urządzeń w sieci`);
+      } finally { this.scanBtn.classList.remove("spin"); }
+    });
+  },
+  draw() {
+    const r = this.data, tbody = $("#ln-rows");
+    if (!r || !tbody) return;
+    const on = r.devices.filter((d) => d.online).length;
+    $("#ln-on").textContent = `${on} w sieci`;
+    $("#ln-sub").textContent = `${r.subnet}${r.interface ? ` · ${r.interface}` : ""}`;
+    $("#ln-at").textContent = r.scanning && !r.scanned_at ? "skanuję sieć…" : r.scanned_at ? `skanowano ${ago(r.scanned_at)}` : "";
+    const err = $("#ln-err");
+    err.hidden = !r.error;
+    err.textContent = r.error || "";
+    const q = this.q.trim().toLowerCase();
+    const list = r.devices.filter((d) => (!this.only || d.online) &&
+      (!q || [devName(d), d.type_label, d.ip, d.mac, d.vendor, d.hostname, d.mdns, d.netbios, d.model, d.note].join(" ").toLowerCase().includes(q)));
+    list.sort((a, b) => (b.online - a.online) || ipKey(a.ip) - ipKey(b.ip));
+    if (!r.devices.length) {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><b>${r.scanned_at ? "Nie znaleziono urządzeń" : "Trwa pierwsze skanowanie"}</b>${r.scanned_at ? "Sprawdź w ustawieniach, czy adres sieci domowej jest poprawny." : "Za kilkanaście sekund pojawią się tu urządzenia z sieci domowej."}</div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.map((d) => `
+      <tr class="click ${d.online ? "" : "off"}" data-mac="${esc(d.mac)}">
+        <td class="l-name"><div class="dev">${devIcon(d.type)}<div style="min-width:0">
+          <div class="title">${esc(devName(d))}${d.is_self ? ' <span class="badge">ten serwer</span>' : ""}${d.is_gateway ? ' <span class="badge">router</span>' : ""}</div>
+          <div class="subtitle">${esc(d.name || shortHost(d.mdns) || shortHost(d.hostname) || d.netbios ? d.type_label : (d.vendor || (d.random_mac ? "prywatny adres MAC" : "producent nieznany")))}${d.note ? ` · ${esc(d.note)}` : ""}</div></div></div></td>
+        <td class="l-ip mono nowrap">${esc(d.ip)}</td>
+        <td class="hide-sm mono nowrap muted">${esc(d.mac)}</td>
+        <td class="hide-sm">${d.vendor ? esc(d.vendor) : d.random_mac ? '<span class="faint" title="Telefony i laptopy ukrywają prawdziwy adres MAC w sieciach Wi‑Fi">prywatny MAC</span>' : '<span class="faint">—</span>'}</td>
+        <td class="l-seen right nowrap">${d.online ? '<span class="badge ok"><span class="dot ok"></span>w sieci</span>' : `<span class="muted">${ago(d.last_seen)}</span>`}</td>
+      </tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nic nie pasuje do „${esc(this.q)}”</div></td></tr>`;
+  },
+  update() {
+    if (this.data && this.data.scanning && now() - (this.last || 0) > 3) return this.load();
+    if (now() - (this.last || 0) > 20) this.load();
+  },
+};
+
+const LanDetail = {
+  open(mac) {
+    const d = Lan.data && Lan.data.devices.find((x) => x.mac === mac);
+    if (!d) return;
+    this.d = d;
+    const body = el(`<div></div>`);
+    const save = button("Zapisz", "primary", () => this.save(save));
+    const forget = button(`${ICONS.trash}Zapomnij`, "danger", () => this.forget());
+    forget.disabled = d.online;
+    forget.title = d.online ? "Można zapomnieć tylko urządzenie, którego teraz nie ma w sieci" : "Usuń z listy (wróci, jeśli znowu pojawi się w sieci)";
+    this.m = modal({ title: devName(d), body, wide: true, footer: [forget, el('<div class="spacer"></div>'), button("Zamknij", "", () => this.m.close()), save],
+      onClose: () => { this.m = null; } });
+    this.body = body;
+    this.draw();
+  },
+  draw() {
+    const d = this.d;
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+    const ports = d.ports == null ? '<span class="muted">jeszcze nie sprawdzano</span>'
+      : d.ports.length ? d.ports.map((p) => `<span class="badge" title="${esc(d.port_names[p] || "")}">${p} · ${esc(d.port_names[p] || "")}</span>`).join(" ")
+        : '<span class="muted">brak otwartych portów z listy</span>';
+    this.body.innerHTML = `
+      <div class="dev dev-head">${devIcon(d.type)}<div><div class="title">${esc(d.type_label)}</div>
+        <div class="subtitle">${d.online ? '<span class="badge ok"><span class="dot ok"></span>w sieci</span>' : `ostatnio w sieci ${ago(d.last_seen)}`}</div></div></div>
+      <form class="form" id="ld-form" style="margin:16px 0">
+        <div class="form-row">
+          <label class="field">Własna nazwa <span class="hint">pusta = nazwa z sieci</span><input type="text" name="name" maxlength="60" placeholder="${esc(shortHost(d.mdns) || shortHost(d.hostname) || d.netbios || "np. Telewizor w salonie")}"></label>
+          <label class="field">Notatka<input type="text" name="note" maxlength="300" placeholder="np. pokój dzieci"></label>
+        </div>
+      </form>
+      <dl class="facts">
+        ${row("Adres IP", `<span class="mono">${esc(d.ip)}</span>`)}
+        ${row("Adres MAC", `<span class="mono">${esc(d.mac)}</span>${d.random_mac ? '<div class="fact-note">prywatny (losowy) adres. Telefony i laptopy ukrywają tak prawdziwy adres w sieciach Wi‑Fi, dlatego producent jest nieznany.</div>' : ""}`)}
+        ${row("Producent", esc(d.vendor || "—"))}
+        ${row("Model", esc(d.model))}
+        ${row("Nazwa w DNS", d.hostname && `<span class="mono">${esc(d.hostname)}</span>`)}
+        ${row("Nazwa mDNS", d.mdns && `<span class="mono">${esc(d.mdns)}</span>`)}
+        ${row("Nazwa Windows", d.netbios && `<span class="mono">${esc(d.netbios)}</span>`)}
+        ${row("Pierwszy raz", fmtDateTime(d.first_seen))}
+        ${row("Ostatnio", d.online ? "teraz" : fmtDateTime(d.last_seen))}
+        <dt>Otwarte porty</dt><dd><div class="ports">${ports}</div>
+          <button class="btn sm" type="button" id="ld-ports" style="margin-top:8px">${d.ports == null ? "Sprawdź porty" : "Sprawdź ponownie"}</button>
+          ${d.ports_at ? `<span class="muted" style="font-size:12px;margin-left:8px">${ago(d.ports_at)}</span>` : ""}</dd>
+      </dl>`;
+    const f = $("#ld-form", this.body);
+    f.name.value = d.name || "";
+    f.note.value = d.note || "";
+    f.addEventListener("submit", (e) => e.preventDefault());
+    const pb = $("#ld-ports", this.body);
+    pb.disabled = !d.online;
+    if (!d.online) pb.title = "Urządzenia nie ma teraz w sieci";
+    pb.addEventListener("click", () => withBusy(pb, async () => {
+      pb.textContent = "Sprawdzam…";
+      const nd = await api(`/api/lan/${encodeURIComponent(d.mac)}/ports`, { method: "POST" });
+      this.replace(nd, f);
+    }));
+  },
+  replace(nd, f) {
+    const keep = f ? { name: f.name.value, note: f.note.value } : null;
+    const list = Lan.data.devices;
+    list[list.findIndex((x) => x.mac === nd.mac)] = nd;
+    this.d = nd;
+    if (this.m) {
+      this.draw();
+      if (keep) { const nf = $("#ld-form", this.body); nf.name.value = keep.name; nf.note.value = keep.note; }
+      $(".modal-h h3", this.m.el).textContent = devName(nd);
+    }
+    Lan.draw();
+  },
+  save(btn) {
+    const f = $("#ld-form", this.body);
+    withBusy(btn, async () => {
+      const nd = await api(`/api/lan/${encodeURIComponent(this.d.mac)}`, { method: "PATCH", body: { name: f.name.value, note: f.note.value } });
+      this.replace(nd);
+      this.m.close();
+      toast("Zapisano");
+    });
+  },
+  async forget() {
+    const d = this.d;
+    if (!await confirmBox("Zapomnieć urządzenie?", `„${esc(devName(d))}” (${esc(d.ip)}) zniknie z listy razem z nadaną nazwą. Jeśli znowu pojawi się w sieci, wróci jako nowe.`, "Zapomnij", true)) return;
+    try {
+      await api(`/api/lan/${encodeURIComponent(d.mac)}`, { method: "DELETE" });
+      Lan.data.devices = Lan.data.devices.filter((x) => x.mac !== d.mac);
+      this.m && this.m.close();
+      Lan.draw();
+      toast("Usunięto z listy");
+    } catch (e) { toast(e.message, true); }
+  },
+};
+
 /* ================================================================ widok: historia */
 function sessionTable(items, showClient) {
   if (!items.length) return '<div class="empty"><b>Brak sesji</b>Sesja pojawi się, gdy klient połączy się z VPN.</div>';
@@ -779,8 +992,8 @@ const History = {
 };
 
 /* ================================================================ widok: dziennik */
-const EVENT_KINDS = [["", "Wszystko"], ["connect", "Połączenia"], ["disconnect", "Rozłączenia"], ["client", "Klienci"], ["auth", "Logowania"], ["system", "System"]];
-const EVENT_ICON = { connect: ICONS.plug, disconnect: ICONS.unplug, roam: ICONS.route, client: ICONS.user, auth: ICONS.lock, settings: ICONS.gear, system: ICONS.gear };
+const EVENT_KINDS = [["", "Wszystko"], ["connect", "Połączenia"], ["disconnect", "Rozłączenia"], ["client", "Klienci"], ["lan", "Sieć domowa"], ["auth", "Logowania"], ["system", "System"]];
+const EVENT_ICON = { connect: ICONS.plug, disconnect: ICONS.unplug, roam: ICONS.route, client: ICONS.user, auth: ICONS.lock, settings: ICONS.gear, system: ICONS.gear, lan: ICONS.route };
 const Events = {
   title: "Dziennik",
   kind: "",
@@ -878,7 +1091,7 @@ const Settings = {
 };
 
 /* ================================================================ router */
-const VIEWS = { dashboard: Dashboard, clients: Clients, connections: Connections, history: History, events: Events, settings: Settings };
+const VIEWS = { dashboard: Dashboard, clients: Clients, connections: Connections, lan: Lan, history: History, events: Events, settings: Settings };
 
 function route() {
   const name = (location.hash || "#dashboard").slice(1);
@@ -903,6 +1116,7 @@ function applyStatus() {
   if (!st) return;
   $("#nav-online").textContent = st.wg.online;
   $("#nav-online").className = `badge ${st.wg.online ? "ok" : ""}`;
+  if (st.lan) $("#nav-lan").textContent = st.lan.online;
   const wb = $("#wg-badge");
   wb.textContent = st.wg.up ? "działa" : "nie działa";
   wb.className = `badge ${st.wg.up ? "ok" : "bad"}`;

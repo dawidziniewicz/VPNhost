@@ -215,6 +215,11 @@ td .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; font-size: 13px; margin: 0; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.facts dt[title] { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+.fact-note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.fact-note span { white-space: nowrap; }
+.fact-note .warn { color: var(--warn); }
+.fact-note .bad { color: var(--bad); }
 .iface { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 16px; font-size: 13px; align-items: center; }
 .iface .n { font-family: var(--mono); font-size: 12.5px; }
 
@@ -383,4 +388,37 @@ pre.conf { background: var(--bg-2); border: 1px solid var(--line); border-radius
   .stable .k-client { grid-area: client; }
   .stable .k-start { grid-area: start; color: var(--muted); font-size: 12.5px; }
   .stable .k-dur { grid-area: dur; font-size: 12.5px; }
+}
+
+/* Sieć domowa */
+.dev { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.dev .title { overflow: hidden; text-overflow: ellipsis; }
+.dev-ico { flex: none; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+.dev-ico svg { width: 19px; height: 19px; }
+.dev-ico.t-router, .dev-ico.t-server, .dev-ico.t-network { color: var(--accent); }
+.dev-ico.t-phone, .dev-ico.t-tablet, .dev-ico.t-computer { color: var(--down); }
+.dev-ico.t-iot, .dev-ico.t-camera { color: var(--warn); }
+.dev-ico.t-tv, .dev-ico.t-speaker, .dev-ico.t-console, .dev-ico.t-printer, .dev-ico.t-nas { color: var(--up); }
+.modal-f .spacer { flex: 1; }
+@media (max-width: 820px) { .modal-f .spacer { display: none; } }
+.dev-head .dev-ico { width: 44px; height: 44px; border-radius: 11px; }
+.dev-head .dev-ico svg { width: 24px; height: 24px; }
+.dev-head .title { font-weight: 600; font-size: 15px; }
+.ports { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn.spin svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 820px) {
+  .lan-tools { flex-wrap: wrap; }
+  .lan-tools .search { flex: 1 1 100%; }
+  .lan-tools .select-auto { flex: 1 1 0; width: auto; }
+  .ltable thead { display: none; }
+  .ltable, .ltable tbody { display: block; }
+  .ltable tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name seen" "name ip"; gap: 4px 12px; padding: 11px 14px; border-top: 1px solid var(--line); align-items: center; }
+  .ltable tr:first-child { border-top: 0; }
+  .ltable td { display: block; padding: 0; border: 0; min-width: 0; }
+  .ltable td.hide-sm { display: none; }
+  .ltable td[colspan] { grid-column: 1 / -1; }
+  .ltable .l-name { grid-area: name; }
+  .ltable .l-ip { grid-area: ip; text-align: right; font-size: 12.5px; color: var(--muted); }
+  .ltable .l-seen { grid-area: seen; font-size: 12.5px; }
 }

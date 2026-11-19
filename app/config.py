@@ -49,5 +49,9 @@ CONNTRACK_PATH = Path(_env("CONNTRACK_PATH", "/proc/net/nf_conntrack"))
 OS_RELEASE_PATH = Path(_env("OS_RELEASE_PATH", "/host/os-release"))
 DISK_PATH = Path(_env("DISK_PATH", str(WG_CONF_DIR)))
 
+# Sieć domowa: co ile skanować (s) i gdzie leży baza producentów kart sieciowych.
+LAN_SCAN_INTERVAL = int(_env("LAN_SCAN_INTERVAL", "180"))
+OUI_PATH = Path(_env("OUI_PATH", str(_dev_root / "manuf") if MOCK else "/usr/share/vpnhost/manuf"))
+
 APP_VERSION = _env("APP_VERSION", "dev")
 BUILD_DATE = _env("BUILD_DATE", "")

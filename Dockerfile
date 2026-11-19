@@ -17,6 +17,17 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Baza producentów kart sieciowych (do rozpoznawania urządzeń w sieci domowej).
+# Pobierana przy każdej budowie, więc jest aktualna. Bez niej panel działa, tylko nie pokazuje producenta.
+RUN mkdir -p /usr/share/vpnhost && python -c "\
+import urllib.request, sys; \
+url = 'https://www.wireshark.org/download/automated/data/manuf'; \
+req = urllib.request.Request(url, headers={'User-Agent': 'vpnhost-build'}); \
+data = urllib.request.urlopen(req, timeout=60).read(); \
+assert len(data) > 500000, 'za mały plik'; \
+open('/usr/share/vpnhost/manuf', 'wb').write(data); \
+print('manuf:', len(data), 'B')" || echo "UWAGA: nie udało się pobrać bazy producentów MAC"
+
 COPY app ./app
 
 EXPOSE 8090

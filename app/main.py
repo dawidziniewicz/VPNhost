@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import config
 from .auth import COOKIE, Auth
+from .lan import MAC_RE, LanScanner
 from .monitor import Monitor
 from .service import MODES, ClientService, ServiceError
 from .store import Store
@@ -31,6 +32,7 @@ class Ctx:
     service: ClientService
     auth: Auth
     monitor: Monitor
+    lan: LanScanner
 
 
 ctx = Ctx()
@@ -43,12 +45,22 @@ async def lifespan(app: FastAPI):
     ctx.service = ClientService(ctx.store, make_backend())
     ctx.auth = Auth(ctx.store)
     ctx.monitor = Monitor(ctx.store, ctx.service)
+    ctx.lan = LanScanner(ctx.store, lambda: ctx.service.settings()["lan_subnet"])
     ctx.store.event("system", f"Uruchomiono panel (wersja {config.APP_VERSION})")
     log.info("Panel VPN %s: http://%s:%s (tryb symulacji: %s)",
              config.APP_VERSION, config.PANEL_HOST, config.PANEL_PORT, config.MOCK)
-    task = asyncio.create_task(ctx.monitor.run())
+    tasks = [asyncio.create_task(ctx.monitor.run()), asyncio.create_task(lan_loop())]
     yield
-    task.cancel()
+    for task in tasks:
+        task.cancel()
+
+
+async def lan_loop() -> None:
+    """Skanowanie sieci domowej w tle (pierwsze zaraz po starcie)."""
+    await asyncio.sleep(3)
+    while True:
+        await asyncio.to_thread(ctx.lan.scan)
+        await asyncio.sleep(config.LAN_SCAN_INTERVAL)
 
 
 app = FastAPI(title="VPNhost", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -236,6 +248,7 @@ def status(_: str = Depends(require_auth)):
             "tx_rate": live[2],
             "connections": len(mon.connections),
         },
+        "lan": ctx.lan.counts(),
         "clients": clients,
     }
 
@@ -438,3 +451,56 @@ def get_settings(_: str = Depends(require_auth)):
 async def put_settings(request: Request, _: str = Depends(require_auth)):
     data = await request.json()
     return await asyncio.to_thread(ctx.service.update_settings, data)
+
+
+# ---------------------------------------------------------------- sieć domowa
+
+def lan_out() -> dict[str, Any]:
+    lan = ctx.lan
+    return {"subnet": ctx.service.settings()["lan_subnet"], "interface": lan.iface, "gateway": lan.gateway,
+            "scanned_at": lan.scanned_at, "scanning": lan.scanning, "error": lan.error,
+            "interval": config.LAN_SCAN_INTERVAL, "devices": lan.devices()}
+
+
+def lan_mac(mac: str) -> str:
+    mac = mac.lower().replace("-", ":")
+    if not MAC_RE.match(mac):
+        raise HTTPException(400, "Nieprawidłowy adres MAC")
+    return mac
+
+
+@app.get("/api/lan")
+def lan_devices(_: str = Depends(require_auth)):
+    return lan_out()
+
+
+@app.post("/api/lan/scan")
+async def lan_scan(_: str = Depends(require_auth)):
+    await asyncio.to_thread(ctx.lan.scan)
+    return lan_out()
+
+
+@app.patch("/api/lan/{mac}")
+async def lan_update(mac: str, request: Request, _: str = Depends(require_auth)):
+    data = await request.json()
+    try:
+        return await asyncio.to_thread(ctx.lan.update, lan_mac(mac), data)
+    except KeyError as exc:
+        raise HTTPException(404, "Nie ma takiego urządzenia") from exc
+
+
+@app.post("/api/lan/{mac}/ports")
+async def lan_ports(mac: str, _: str = Depends(require_auth)):
+    try:
+        return await asyncio.to_thread(ctx.lan.probe_ports, lan_mac(mac))
+    except KeyError as exc:
+        raise HTTPException(404, "Nie ma takiego urządzenia") from exc
+
+
+@app.delete("/api/lan/{mac}")
+async def lan_forget(mac: str, _: str = Depends(require_auth)):
+    try:
+        await asyncio.to_thread(ctx.lan.forget, lan_mac(mac))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True}

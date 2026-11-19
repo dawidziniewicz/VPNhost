@@ -62,6 +62,21 @@ CREATE TABLE IF NOT EXISTS events (
     public_key TEXT
 );
 CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
+CREATE TABLE IF NOT EXISTS lan_devices (
+    mac TEXT PRIMARY KEY,
+    ip TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    vendor TEXT,
+    hostname TEXT,
+    mdns TEXT,
+    netbios TEXT,
+    model TEXT,
+    ports TEXT,
+    ports_at INTEGER,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS auth_sessions (
     token TEXT PRIMARY KEY,
     username TEXT NOT NULL,

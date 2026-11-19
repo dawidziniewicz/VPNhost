@@ -13,6 +13,9 @@ serwerze co VPN i aktualizuje się sam po każdym pushu na gałąź `main`.
 - **Zasoby serwera:** procesor, RAM, dysk, temperatura, obciążenie, ruch na interfejsach.
 - **Połączenia:** dokąd łączą się klienci VPN (adres, nazwa hosta, usługa, ilość danych)
   i najczęstsze cele.
+- **Sieć domowa:** wszystkie urządzenia w sieci (IP, MAC, producent, nazwa, model), zgadywany typ
+  (telefon, telewizor, drukarka, smart home…), własne nazwy i notatki, sprawdzanie otwartych portów,
+  wpis w dzienniku, gdy pojawi się nowe urządzenie. Skan co 3 min (`LAN_SCAN_INTERVAL`).
 - **Historia:** zużycie danych dziennie i według klientów, sesje (od kiedy, skąd, ile danych).
 - **Dziennik:** połączenia, rozłączenia, zmiany adresu, zmiany klientów, logowania.
 - **Ustawienia:** adres serwera (DuckDNS), DNS, sieć domowa, keepalive, MTU, zmiana hasła.
