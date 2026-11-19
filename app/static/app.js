@@ -1028,8 +1028,8 @@ const Settings = {
           <form class="form" id="st-form">
             <label class="field">Adres serwera (Endpoint) <span class="hint">nazwa DuckDNS lub adres IP i port, np. twoja-nazwa.duckdns.org:51820</span><input type="text" name="endpoint" required></label>
             <div class="form-row">
-              <label class="field">Serwery DNS<input type="text" name="dns" placeholder="1.1.1.1, 1.0.0.1"></label>
-              <label class="field">Sieć domowa<input type="text" name="lan_subnet" placeholder="192.168.1.0/24"></label>
+              <label class="field">Serwery DNS <span class="hint">kilka adresów po przecinku</span><input type="text" name="dns" placeholder="1.1.1.1, 1.0.0.1"></label>
+              <label class="field">Sieć domowa <span class="hint">zakres adresów w domu</span><input type="text" name="lan_subnet" placeholder="192.168.1.0/24"></label>
             </div>
             <div class="form-row">
               <label class="field">Keepalive (s) <span class="hint">utrzymuje połączenie za NAT-em</span><input type="number" name="keepalive" min="0" max="600"></label>

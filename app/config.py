@@ -35,7 +35,7 @@ COOKIE_SECURE = _flag("COOKIE_SECURE")
 
 # Wartości domyślne dla nowych klientów (można je zmienić w panelu).
 DEFAULT_ENDPOINT = _env("WG_ENDPOINT")
-DEFAULT_DNS = _env("WG_DNS", "1.1.1.1")
+DEFAULT_DNS = _env("WG_DNS", "1.1.1.1, 1.0.0.1")
 LAN_SUBNET = _env("LAN_SUBNET", "192.168.1.0/24")
 DEFAULT_KEEPALIVE = int(_env("WG_KEEPALIVE", "25"))
 
