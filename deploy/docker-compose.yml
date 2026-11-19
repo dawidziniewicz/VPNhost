@@ -1,0 +1,44 @@
+# Uruchamiane na serwerze VPN z katalogu /opt/vpnhost (instaluje go deploy/install.sh).
+name: vpnhost
+
+services:
+  panel:
+    image: ${PANEL_IMAGE:-ghcr.io/dawidziniewicz/vpnhost:latest}
+    container_name: vpnhost-panel
+    restart: unless-stopped
+    # Sieć hosta: panel widzi interfejs wg0, ruch i połączenia serwera.
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      WG_CONF_DIR: /etc/wireguard
+    volumes:
+      - /etc/wireguard:/etc/wireguard
+      - ./data:/data
+      - /etc/os-release:/host/os-release:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+
+  # Co minutę sprawdza, czy w GHCR jest nowszy obraz panelu, i podmienia kontener.
+  updater:
+    image: docker:27-cli
+    container_name: vpnhost-updater
+    restart: unless-stopped
+    working_dir: /opt/vpnhost
+    entrypoint: ["/bin/sh", "/opt/vpnhost/updater.sh"]
+    environment:
+      UPDATE_INTERVAL: ${UPDATE_INTERVAL:-60}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/vpnhost:/opt/vpnhost
+      - /root/.docker:/root/.docker:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "2"

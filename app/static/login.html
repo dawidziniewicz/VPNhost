@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logowanie · Panel VPN</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css?v={{VERSION}}">
+<script src="/static/theme.js?v={{VERSION}}"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <form class="card login form" id="login" autocomplete="on">
+    <div class="brand">
+      <img src="/static/favicon.svg" alt="">
+      <div><b>Panel VPN</b><small>WireGuard · zaloguj się</small></div>
+    </div>
+    <label class="field">Login
+      <input type="text" name="username" autocomplete="username" value="admin" required>
+    </label>
+    <label class="field">Hasło
+      <input type="password" name="password" autocomplete="current-password" required autofocus>
+    </label>
+    <div class="err" id="err"></div>
+    <button class="btn primary" type="submit">Zaloguj</button>
+  </form>
+</div>
+<script src="/static/login.js?v={{VERSION}}"></script>
+</body>
+</html>

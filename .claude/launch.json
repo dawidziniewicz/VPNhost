@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "panel-symulacja",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "WG_MOCK=1 ADMIN_PASSWORD=demo12345 WG_ENDPOINT=twoja-nazwa.duckdns.org:51820 PANEL_HOST=127.0.0.1 .venv/bin/python -m app"],
+      "port": 8090
+    }
+  ]
+}
